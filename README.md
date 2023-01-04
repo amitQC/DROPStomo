@@ -1,6 +1,8 @@
 # DROPStomo
 DROPStomo is a python package for performing state and process tomography in the context of finite-dimensional Wigner representation on near-term quantum devices. This is a phase-space tomography approach to recover the finite-dimensional Wigner representations, with a particular focus on the [DROPS](https://spindrops.org/) (Discrete Representation of OPeratorS) representation. The package is based on paper: 
 
+This git repository contains the source code for the package.
+
 This package is based on Qiskit framework and can be easily adaptable for other frameworks. The package can be plugged in directly into quantum simulators or quantum devices.  
 
 ## Installation
