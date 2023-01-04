@@ -14,4 +14,8 @@ To use single qubit Wigner tomography please see an example file:
 
 ## Citation
 
+```
+Add citation details here.
+
+```
 
