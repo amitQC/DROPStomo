@@ -12,4 +12,17 @@ pip install DROPStomo
 ## How to use?
 Currently, Wigner state tomography is available for single and two qubit system, whereas Wigner process tomography is available for single qubit system. To use Wigner tomography on please see the example codes in Examples folder.  
 
-
+## Citation
+If you DROPS tomography tool in your work, cite it as follows:
+```bash
+@misc{https://doi.org/10.48550/arxiv.2302.12725,
+  doi = {10.48550/ARXIV.2302.12725},
+  url = {https://arxiv.org/abs/2302.12725},
+  author = {Devra, Amit and Glaser, Niklas J. and Huber, Dennis and Glaser, Steffen J.},
+  keywords = {Quantum Physics (quant-ph), FOS: Physical sciences, FOS: Physical sciences},
+  title = {Wigner State and Process Tomography on Near-Term Quantum Devices},
+  publisher = {arXiv},
+  year = {2023},
+  copyright = {Creative Commons Attribution 4.0 International}
+}
+```
