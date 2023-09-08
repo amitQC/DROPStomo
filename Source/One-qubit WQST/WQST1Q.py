@@ -207,6 +207,100 @@ def wrap_angle(angles):
         for j in range(len(angles[i])):
             wangle[i][j] = angles[i][j] - np.floor(angles[i][j]/(2*np.pi))*2*pi
     return(wangle)
+
+
+def getPhaseColor(value):
+    x, y = np.cos(value), np.sin(value)
+    r = np.power(np.maximum(0, np.minimum(1, ( x + y + 1) / 2)), 0.7)
+    g = np.power(np.maximum(0, np.minimum(1, (-x + y + 1) / 2)), 0.7)
+    yp = 0.195 * x + 0.981 * y;
+    b = np.power(np.maximum( 0., -y) * np.minimum(1., 1.41 * np.maximum( 0. , -yp)), 0.7)
+    return (255*r,255*g,255*b)
+
+
+# Weighted averaging of RGB fragment colors for manual shading, the smaller the spherical function value
+# the smaller its weighting -> compensate artifacts at nodal points
+def getAverageRGB(vertex1, vertex2, vertex3, weight1, weight2, weight3):
+    rgb1 = getPhaseColor(vertex1)
+    rgb2 = getPhaseColor(vertex2)
+    rgb3 = getPhaseColor(vertex3)
+
+    # adjustable weighting factor
+    power = 1
+    total_weight = np.power(weight1,power) + np.power(weight2,power) + np.power(weight3,power)
+
+    r_av = int((np.power(weight1,power)*rgb1[0] + np.power(weight2,power)*rgb2[0] + np.power(weight3,power)*rgb3[0])/total_weight)
+    g_av = int((np.power(weight1,power)*rgb1[1] + np.power(weight2,power)*rgb2[1] + np.power(weight3,power)*rgb3[1])/total_weight)
+    b_av = int((np.power(weight1,power)*rgb1[2] + np.power(weight2,power)*rgb2[2] + np.power(weight3,power)*rgb3[2])/total_weight)
+    return (r_av,g_av,b_av)
+
+
+# This functions triangulates the experimental values in the correct order to plot the tomography without any gaps
+def DrawSphericalFunction(x, y, z, res_theta, res_phi, values, figure, subplot_row, subplot_col):
+    x = x * abs(values)
+    y = y * abs(values)
+    z = z * abs(values)
+    angles = wrap_angle(np.angle((values)))
+    angles = np.reshape(angles, (res_theta*res_phi,1))
+    weights = np.reshape(abs(values), (res_theta*res_phi,1))
+
+    # Calculate all possible vertices from value array and scanning positions
+    x_ = []
+    y_ = []
+    z_ = []
+    for i in range(res_theta):
+        for j in range(res_phi):
+            x_.append(x[i][j])
+            y_.append(y[i][j])
+            z_.append(z[i][j])
+
+    # Now the complicated part, efficiently define the banding around the scanned sphere and triangulate the vertices
+    # Should leave no gaps
+    i_ = []
+    j_ = []
+    k_ = []
+    facecolors = []
+    for i in range(res_theta - 1):
+        for j in range(res_phi):
+            if ((i+1)*res_phi + (j+1)) == res_theta*res_phi:
+                continue
+            idx1 = i*res_phi + j
+            idx2 = (i+1)*res_phi + (j+1)
+            idx3 = (i+1)*res_phi + j
+            idx4 = i*res_phi + (j+1)
+            i_.append(idx1)
+            j_.append(idx2)
+            k_.append(idx3)
+            # get the triangle fragment weighted RGB color
+            facecolors.append(px.colors.label_rgb(getAverageRGB(angles[idx1][0],
+                                                                angles[idx2][0],
+                                                                angles[idx3][0],
+                                                                weights[idx1][0],
+                                                                weights[idx2][0],
+                                                                weights[idx3][0])))
+            i_.append(idx1)
+            j_.append(idx4)
+            k_.append(idx2)
+            # get the triangle fragment weighted RGB color
+            facecolors.append(px.colors.label_rgb(getAverageRGB(angles[idx1][0],
+                                                                angles[idx2][0],
+                                                                angles[idx4][0],
+                                                                weights[idx1][0],
+                                                                weights[idx2][0],
+                                                                weights[idx4][0])))
+    # return the plot, directly insert in specified parent subplot
+    return figure.add_trace(go.Mesh3d(
+            x=x_,
+            y=y_,
+            z=z_,
+            i=i_,
+            j=j_,
+            k=k_,
+            facecolor = facecolors,
+            lighting=dict(ambient=1, specular=0, diffuse=0, roughness=0, fresnel=0)
+            ), subplot_row, subplot_col)
+
+
 # In[7]:
 # Colorscheme
 def Droplet_plot(res_theta,f0_0,f1_1,inter):
@@ -249,9 +343,9 @@ def Droplet_plot(res_theta,f0_0,f1_1,inter):
     thphi_np = np.array(thphi)
     phi, theta = thphi_np[:,0].reshape(shape), thphi_np[:,1].reshape(shape)
 
-    x = np.sin(phi)*np.cos(theta) * 1
-    y = np.sin(phi)*np.sin(theta) * 1
-    z = np.cos(phi) * 1
+    x = np.sin(phi)*np.cos(theta)
+    y = np.sin(phi)*np.sin(theta)
+    z = np.cos(phi)
 
     #For matplotlib
     fig = plt.figure(figsize=(5,5))
@@ -277,36 +371,46 @@ def Droplet_plot(res_theta,f0_0,f1_1,inter):
 
     #For plotly
     elif inter==1:
-        fig = make_subplots(rows=1, cols=2, shared_yaxes=True, specs=[[{"type": "surface"},{"type": "surface"}]],
-                                                        subplot_titles=("Identity", "Qubit 1"))
-
-        fig.add_trace(go.Surface(x=abs(r0)*x, y=abs(r0)*y, z=abs(r0)*z, surfacecolor = wrap_angle(np.angle((r0))),
-                                   opacity=1,colorscale=cmap3,cmax=2*np.pi,cmid=np.pi,cmin=0), 1,1)
-        fig.add_trace(go.Surface(x=x*abs(r1), y=y*abs(r1), z=z*abs(r1), surfacecolor = wrap_angle(np.angle((r1))),
-                                   opacity=1,colorscale=cmap3,cmax=2*np.pi,cmid=np.pi,cmin=0), 1,2)
-        return(fig.show())
+        # Make a subplot
+        fig = make_subplots(rows=1, cols=2, specs=[[{"type": "mesh3d"},{"type": "mesh3d"}]],
+                            subplot_titles=("Identity", "Qubit 1"))
+        # Rank 0
+        DrawSphericalFunction(x, y, z, res_theta, res_phi, r0, fig, 1, 1)
+        # Rank 1
+        DrawSphericalFunction(x, y, z, res_theta, res_phi, r1, fig, 1, 2)
+        # Add the colorbar
+        fig.add_trace(go.Mesh3d(
+                x=[None],
+                y=[None],
+                z=[None], intensity = [None],
+                colorscale=cmap3,cmax=2*np.pi,cmid=np.pi,cmin=0, showscale=True, colorbar=dict(
+                title="Phase",
+                titleside="top",
+                tickmode="array",
+                tickvals=[0, 1.5708, 3.1416, 4.7124, 6.2832],
+                labelalias={0: "0", 1.5708: "π/2", 3.1416: "π", 4.7124:"3π/2", 6.2832:"2π"},
+                ticks="outside"
+            )), 1, 2)
+        # The default axis limit for all dimensions
+        axeslimit = .5
+        # update all axes
+        fig.update_layout(scene=dict(xaxis=dict(range=[-axeslimit, axeslimit]), yaxis=dict(range=[-axeslimit, axeslimit]), zaxis=dict(range=[-axeslimit, axeslimit]), aspectmode='cube'), scene2=dict(xaxis=dict(range=[-axeslimit, axeslimit]), yaxis=dict(range=[-axeslimit, axeslimit]), zaxis=dict(range=[-axeslimit, axeslimit]), aspectmode='cube'))
+        return fig.show()
 
 # In[]
 ## Function for plotting expectation values
 def Expec_plot(Expec0,Expec1):
-    fig, axs = plt.subplots(1,2)
+    plt.figure(figsize=(10,6))  # adding this line sets the figure size
+    plt.plot(Expec0, '-o', linewidth = 1, label = 'Id')
+    plt.plot(Expec1, '-o', linewidth = 1, label = 'z')
+    plt.xlabel('N (scanning angles)', fontsize = 12)
+    plt.ylabel('Expec vals', fontsize = 12)
     ymin = -1
     ymax = 1.1
-    # plot rank 0
-    axs[0].plot(Expec0)
-    axs[0].set_title('rank 0 expectation values')
-    axs[0].set_ylim([ymin,ymax])
-    # plot rank 1
-    axs[1].plot(Expec1)
-    axs[1].set_title('rank 1 expectation values')
-    axs[1].set_ylim([ymin,ymax])
-    for ax in axs.flat:
-        ax.set(xlabel='N', ylabel='Expec')
-    # Hide x labels and tick labels for top plots and y ticks for right plots.
-    for ax in axs.flat:
-        ax.label_outer()
-    fig.tight_layout()
-
+    plt.ylim([ymin, ymax])
+    plt.xlim([0,len(Expec0)])
+    plt.legend()
+    plt.title('Expectation Values', fontsize = 16)
     return(plt.show())
 
 
@@ -475,4 +579,4 @@ def WQST_1Q_runner(res_theta,circuits,device,shots,inter,rhoT):
     print('State fidelity is:',L[0])
     print('Experimental state is:', L[1])
     # plotting the expectation values
-    return(Expec_plot(Expec0, Expec1),Droplet_plot(res_theta,f0_0,f1_1,inter))
+    return(Droplet_plot(res_theta,f0_0,f1_1,inter),Expec_plot(Expec0, Expec1))
